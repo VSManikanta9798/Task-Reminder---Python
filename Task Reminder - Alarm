@@ -1,0 +1,293 @@
+import tkinter as tk
+from tkinter import messagebox
+from tkinter import ttk
+from PIL import Image, ImageTk
+from tkcalendar import Calendar
+from datetime import datetime
+import time
+import threading
+import pygame  # Using pygame for audio playback
+
+# Initialize the mixer for audio playback
+pygame.mixer.init()
+# Dictionary to store user credentials
+users_db = {}
+
+# Function to validate login credentials
+def validate_login():
+    email_or_phone = login_email.get()
+    password = login_password.get()
+
+    if not email_or_phone or not password:  # Check if fields are empty
+        messagebox.showwarning("Input Error", "Please enter both email/phone and password.")
+    elif email_or_phone in users_db and users_db[email_or_phone] == password:
+        login_window.destroy()  # Close the login window
+        open_main_window()  # Open the main application window
+    else:
+        messagebox.showwarning("Login Error", "Invalid email/phone number or password")
+
+# Function to handle account creation
+def create_account():
+    email_or_phone = create_email.get()
+    password = create_password.get()
+
+    if not email_or_phone or not password:  # Ensure both fields are filled
+        messagebox.showwarning("Input Error", "Please provide both email/phone and password.")
+    elif email_or_phone in users_db:
+        messagebox.showwarning("Account Exists", "Account already exists. Please login.")
+    else:
+        users_db[email_or_phone] = password
+        create_account_window.destroy()
+        messagebox.showinfo("Account Created", "Your account has been created successfully. Please login.")
+
+# Function to reset password
+def reset_password():
+    email_or_phone = reset_email.get()
+    new_password = reset_password_entry.get()
+    confirm_password = reset_confirm_password.get()
+
+    if not email_or_phone or not new_password or not confirm_password:
+        messagebox.showwarning("Input Error", "Please fill in all fields.")
+    elif email_or_phone not in users_db:
+        messagebox.showwarning("Error", "This email/phone does not exist in our records.")
+    elif new_password != confirm_password:
+        messagebox.showwarning("Password Error", "Passwords do not match.")
+    else:
+        # Update the password in the database
+        users_db[email_or_phone] = new_password
+        reset_window.destroy()  # Close the reset password window
+        messagebox.showinfo("Password Reset", "Your password has been reset successfully. Please login.")
+        
+# Function to handle the alarm
+def schedule_alarm(task_name, alarm_time):
+    def check_alarm():
+        while True:
+            current_time = datetime.now().strftime("%H:%M:%S")
+            if current_time == alarm_time:
+                pygame.mixer.music.load(r"C:\Users\Prudhvi\Downloads\mixkit-classic-alarm-995.wav")  # Replace with the path to your audio file
+                pygame.mixer.music.play()
+                messagebox.showinfo("Alarm", f"Time for your task: {task_name}")
+                while pygame.mixer.music.get_busy():
+                    pygame.time.Clock().tick(10)  # Keep script running while audio plays
+                break
+            time.sleep(1)
+    
+    threading.Thread(target=check_alarm, daemon=True).start()
+
+# Function to set background image for any window
+def set_background(window, image_path):
+    bg_image = Image.open(r"C:\Users\Prudhvi\Downloads\Test\appbg.png")
+    bg_image = bg_image.resize((window.winfo_screenwidth(), window.winfo_screenheight()))
+    bg_image = ImageTk.PhotoImage(bg_image)
+
+    bg_label = tk.Label(window, image=bg_image)
+    bg_label.place(relwidth=1, relheight=1)
+    window.bg_image = bg_image  # Keep a reference to avoid garbage collection
+
+# Create account window
+def open_create_account_window():
+    global create_account_window, create_email, create_password
+
+    create_account_window = tk.Toplevel(login_window)
+    create_account_window.title("Create Account")
+    create_account_window.geometry("400x300")
+    set_background(create_account_window, r"C:/Users/HP/Downloads/Task reminder/appbg.png")
+
+    heading_label = tk.Label(create_account_window, text="Create Account", font=("Arial", 18, "bold"))
+    heading_label.pack(pady=20)
+
+    # Email or Phone entry
+    email_label = tk.Label(create_account_window, text="Email or Phone", font=("Arial", 12))
+    email_label.pack(pady=5)
+    create_email = tk.Entry(create_account_window, font=("Arial", 12))
+    create_email.pack(pady=5)
+
+    # Password entry
+    password_label = tk.Label(create_account_window, text="Password", font=("Arial", 12))
+    password_label.pack(pady=5)
+    create_password = tk.Entry(create_account_window, font=("Arial", 12), show="*")
+    create_password.pack(pady=5)
+
+    # Create Account Button
+    create_button = tk.Button(create_account_window, text="Create Account", font=("Arial", 12), command=create_account)
+    create_button.pack(pady=20)
+
+# Forgot Password window
+def open_reset_password_window():
+    global reset_window, reset_email, reset_password_entry, reset_confirm_password
+
+    reset_window = tk.Toplevel(login_window)
+    reset_window.title("Reset Password")
+    reset_window.geometry("400x300")
+    set_background(reset_window, r"C:/Users/HP/Downloads/Task reminder/appbg.png")
+
+    heading_label = tk.Label(reset_window, text="Reset Password", font=("Arial", 18, "bold"))
+    heading_label.pack(pady=20)
+
+    # Email or Phone entry
+    email_label = tk.Label(reset_window, text="Email or Phone", font=("Arial", 12))
+    email_label.pack(pady=5)
+    reset_email = tk.Entry(reset_window, font=("Arial", 12))
+    reset_email.pack(pady=5)
+
+    # New Password entry
+    new_password_label = tk.Label(reset_window, text="New Password", font=("Arial", 12))
+    new_password_label.pack(pady=5)
+    reset_password_entry = tk.Entry(reset_window, font=("Arial", 12), show="*")
+    reset_password_entry.pack(pady=5)
+
+    # Confirm New Password entry
+    confirm_password_label = tk.Label(reset_window, text="Confirm Password", font=("Arial", 12))
+    confirm_password_label.pack(pady=5)
+    reset_confirm_password = tk.Entry(reset_window, font=("Arial", 12), show="*")
+    reset_confirm_password.pack(pady=5)
+
+    # Reset Password Button
+    reset_button = tk.Button(reset_window, text="Reset Password", font=("Arial", 12), command=reset_password)
+    reset_button.pack(pady=20)
+
+# Main window for task reminder
+def open_main_window():
+    window = tk.Tk()
+    window.title("Task Reminder")
+    window.geometry(f"{window.winfo_screenwidth()}x{window.winfo_screenheight()}")
+    set_background(window, r"C:/Users/HP/Downloads/Task reminder/appbg.png")
+
+    # Heading Label for Task Reminder (centered at top)
+    heading_label = tk.Label(window, text="Time Reminder", font=("Arial", 24, "bold"), fg="white", bg="black")
+    heading_label.grid(row=0, column=0, columnspan=2, pady=20, sticky="n")
+
+    # Label for current date and time
+    current_time_label = tk.Label(window, text="Current Time: " + datetime.now().strftime("%d/%m/%Y %H:%M:%S"), font=("Arial", 14), fg="white", bg="black")
+    current_time_label.grid(row=1, column=0, columnspan=2, pady=5)
+
+    # Function to update time every second
+    def update_time():
+        current_time_label.config(text="Current Time: " + datetime.now().strftime("%d/%m/%Y %H:%M:%S"))
+        window.after(1000, update_time)
+
+    update_time()
+
+    # Add, Delete, Reset buttons for tasks
+    def add_task():
+        task = task_entry.get()
+        description = description_entry.get()
+        date = cal.get_date()
+        hour = hour_picker.get()
+        minute = minute_picker.get()
+        second = second_picker.get()
+        if not task or not description or not date or not hour or not minute or not second:
+            messagebox.showwarning("Input Error", "Please fill in all fields.")
+        else:
+            task_listbox.insert(tk.END, f"{task} - {description} - {date} - {hour}:{minute}:{second}")
+            task_time = f"{hour}:{minute}:{second}"
+            schedule_alarm(task, task_time)
+            task_entry.delete(0, tk.END)
+            description_entry.delete(0, tk.END)
+
+    def delete_task():
+        try:
+            selected_task_index = task_listbox.curselection()[0]
+            task_listbox.delete(selected_task_index)
+        except IndexError:
+            messagebox.showwarning("Selection Error", "Please select a task to delete.")
+
+    def reset_fields():
+        task_entry.delete(0, tk.END)
+        description_entry.delete(0, tk.END)
+        hour_picker.delete(0, tk.END)
+        minute_picker.delete(0, tk.END)
+        second_picker.delete(0, tk.END)
+        cal.selection_clear()
+
+    # Input Fields for Task
+    task_label = tk.Label(window, text="Task", font=("Arial", 12), bg="lightblue")
+    task_label.grid(row=2, column=0, padx=10, pady=10, sticky="e")
+    task_entry = tk.Entry(window, width=30)
+    task_entry.grid(row=2, column=1, padx=10, pady=10)
+
+    description_label = tk.Label(window, text="Description", font=("Arial", 12), bg="lightblue")
+    description_label.grid(row=3, column=0, padx=10, pady=10, sticky="e")
+    description_entry = tk.Entry(window, width=30)
+    description_entry.grid(row=3, column=1, padx=10, pady=10)
+
+    # Time selection and calendar
+    time_label = tk.Label(window, text="Select Time", font=("Arial", 12), bg="lightblue")
+    time_label.grid(row=4, column=0, padx=10, pady=10, sticky="e")
+
+    hour_label = tk.Label(window, text="Hours", font=("Arial", 12), bg="lightblue")
+    hour_label.grid(row=4, column=1, padx=5, pady=10)
+    hour_picker = tk.Spinbox(window, from_=0, to=23, width=5, font=("Arial", 12))
+    hour_picker.grid(row=4, column=2, padx=5, pady=10)
+
+    minute_label = tk.Label(window, text="Minutes", font=("Arial", 12), bg="lightblue")
+    minute_label.grid(row=4, column=3, padx=5, pady=10)
+    minute_picker = tk.Spinbox(window, from_=0, to=59, width=5, font=("Arial", 12))
+    minute_picker.grid(row=4, column=4, padx=5, pady=10)
+
+    second_label = tk.Label(window, text="Seconds", font=("Arial", 12), bg="lightblue")
+    second_label.grid(row=4, column=5, padx=5, pady=10)
+    second_picker = tk.Spinbox(window, from_=0, to=59, width=5, font=("Arial", 12))
+    second_picker.grid(row=4, column=6, padx=5, pady=10)
+
+    # Calendar widget
+    calendar_label = tk.Label(window, text="Select Date", font=("Arial", 12), bg="lightblue")
+    calendar_label.grid(row=5, column=0, padx=10, pady=10, sticky="e")
+    cal = Calendar(window, selectmode='day', date_pattern='dd/mm/yyyy')
+    cal.grid(row=5, column=1, columnspan=6, padx=10, pady=10)
+
+    # Add, Delete, Reset Buttons
+    add_button = tk.Button(window, text="Add Task", command=add_task, font=("Arial", 12), bg="green", fg="white")
+    add_button.grid(row=6, column=0, padx=10, pady=20)
+    delete_button = tk.Button(window, text="Delete", command=delete_task, font=("Arial", 12), bg="red", fg="white")
+    delete_button.grid(row=6, column=1, padx=10, pady=20)
+    reset_button = tk.Button(window, text="Reset", command=reset_fields, font=("Arial", 12), bg="yellow", fg="black")
+    reset_button.grid(row=6, column=2, padx=10, pady=20)
+
+    # Task listbox
+    task_listbox = tk.Listbox(window, width=60, height=10, font=("Arial", 12))
+    task_listbox.grid(row=7, column=0, columnspan=7, padx=10, pady=10)
+
+    window.mainloop()
+
+# Function to open the login window
+def open_login_window():
+    global login_window, login_email, login_password
+
+    login_window = tk.Tk()
+    login_window.title("Login")
+    login_window.geometry("400x300")
+    set_background(login_window, r"C:/Users/HP/Downloads/Task reminder/appbg.png")
+
+    heading_label = tk.Label(login_window, text="Login", font=("Arial", 18, "bold"))
+    heading_label.pack(pady=20)
+
+    # Email or Phone entry
+    email_label = tk.Label(login_window, text="Email or Phone", font=("Arial", 12))
+    email_label.pack(pady=5)
+    login_email = tk.Entry(login_window, font=("Arial", 12))
+    login_email.pack(pady=5)
+
+    # Password entry
+    password_label = tk.Label(login_window, text="Password", font=("Arial", 12))
+    password_label.pack(pady=5)
+    login_password = tk.Entry(login_window, font=("Arial", 12), show="*")
+    login_password.pack(pady=5)
+
+    # Login Button
+    login_button = tk.Button(login_window, text="Login", font=("Arial", 12), command=validate_login)
+    login_button.pack(pady=20)
+
+    # Create Account Button
+    create_account_button = tk.Button(login_window, text="Create Account", font=("Arial", 12), command=open_create_account_window)
+    create_account_button.pack(pady=10)
+
+    # Forgot Password Button
+    forgot_password_button = tk.Button(login_window, text="Forgot Password", font=("Arial", 12), command=open_reset_password_window)
+    forgot_password_button.pack(pady=10)
+
+    login_window.mainloop()
+
+# Start the login window
+open_login_window()
+
