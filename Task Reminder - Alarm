@@ -6,41 +6,92 @@ from tkcalendar import Calendar
 from datetime import datetime
 import time
 import threading
+import sqlite3
 import pygame  # Using pygame for audio playback
 
 # Initialize the mixer for audio playback
 pygame.mixer.init()
-# Dictionary to store user credentials
-users_db = {}
 
-# Function to validate login credentials
+# Create a connection to SQLite database (or create the file if it doesn't exist)
+def create_database():
+    conn = sqlite3.connect("task_reminder.db")
+    cursor = conn.cursor()
+
+    # Create users table if not exists
+    cursor.execute('''CREATE TABLE IF NOT EXISTS users (
+                        email_or_phone TEXT PRIMARY KEY,
+                        password TEXT
+                    )''')
+
+    # Drop the tasks table if it already exists
+    #cursor.execute('''DROP TABLE IF EXISTS tasks''')  # Drop the existing tasks table
+
+    # Recreate the tasks table with the correct structure
+    cursor.execute('''CREATE TABLE IF NOT EXISTS tasks (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        user_id TEXT,
+                        task_name TEXT,
+                        description TEXT,
+                        date TEXT,
+                        time TEXT,
+                        FOREIGN KEY(user_id) REFERENCES users(email_or_phone)
+                    )''')
+
+    conn.commit()
+    conn.close()
+
+create_database()
+
+# Global variable to hold the logged-in user's email or phone
+logged_in_user_email = ""
+
+# Function to validate login
 def validate_login():
+    global logged_in_user_email  # Declare the global variable
     email_or_phone = login_email.get()
     password = login_password.get()
 
     if not email_or_phone or not password:  # Check if fields are empty
         messagebox.showwarning("Input Error", "Please enter both email/phone and password.")
-    elif email_or_phone in users_db and users_db[email_or_phone] == password:
-        login_window.destroy()  # Close the login window
-        open_main_window()  # Open the main application window
     else:
-        messagebox.showwarning("Login Error", "Invalid email/phone number or password")
+        # Check database for user credentials
+        conn = sqlite3.connect("task_reminder.db")
+        cursor = conn.cursor()
+        cursor.execute("SELECT password FROM users WHERE email_or_phone = ?", (email_or_phone,))
+        result = cursor.fetchone()
+        conn.close()
 
-# Function to handle account creation
+        if result and result[0] == password:
+            logged_in_user_email = email_or_phone  # Store the logged-in email
+            login_window.destroy()  # Close the login window
+            open_main_window(logged_in_user_email)  # Pass the email to the main window
+        else:
+            messagebox.showwarning("Login Error", "Invalid email/phone number or password")
+
+# Function to validate account creation
 def create_account():
     email_or_phone = create_email.get()
     password = create_password.get()
 
     if not email_or_phone or not password:  # Ensure both fields are filled
-        messagebox.showwarning("Input Error", "Please provide both email/phone and password.")
-    elif email_or_phone in users_db:
-        messagebox.showwarning("Account Exists", "Account already exists. Please login.")
+        messagebox.showwarning("Input Error", "Ple5ase provide both email/phone and password.")
     else:
-        users_db[email_or_phone] = password
-        create_account_window.destroy()
-        messagebox.showinfo("Account Created", "Your account has been created successfully. Please login.")
+        # Check if the user already exists
+        conn = sqlite3.connect("task_reminder.db")
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM users WHERE email_or_phone = ?", (email_or_phone,))
+        result = cursor.fetchone()
 
-# Function to reset password
+        if result:
+            messagebox.showwarning("Account Exists", "Account already exists. Please login.")
+        else:
+            cursor.execute("INSERT INTO users (email_or_phone, password) VALUES (?, ?)", (email_or_phone, password))
+            conn.commit()
+            conn.close()
+            create_account_window.destroy()
+            messagebox.showinfo("Account Created", "Your account has been created successfully. Please login.")
+
+# Function to reset the password
 def reset_password():
     email_or_phone = reset_email.get()
     new_password = reset_password_entry.get()
@@ -48,15 +99,36 @@ def reset_password():
 
     if not email_or_phone or not new_password or not confirm_password:
         messagebox.showwarning("Input Error", "Please fill in all fields.")
-    elif email_or_phone not in users_db:
+        return
+
+    # Connect to the database
+    conn = sqlite3.connect('task_reminder.db')
+    cursor = conn.cursor()
+
+    # Check if the email/phone exists in the database
+    cursor.execute('SELECT * FROM users WHERE email_or_phone = ?', (email_or_phone,))
+    user = cursor.fetchone()
+
+    if user is None:
         messagebox.showwarning("Error", "This email/phone does not exist in our records.")
-    elif new_password != confirm_password:
+        conn.close()
+        return
+
+    # Check if the new password and confirm password match
+    if new_password != confirm_password:
         messagebox.showwarning("Password Error", "Passwords do not match.")
-    else:
-        # Update the password in the database
-        users_db[email_or_phone] = new_password
-        reset_window.destroy()  # Close the reset password window
-        messagebox.showinfo("Password Reset", "Your password has been reset successfully. Please login.")
+        conn.close()
+        return
+
+    # Update the password in the database
+    cursor.execute('UPDATE users SET password = ? WHERE email_or_phone = ?', (new_password, email_or_phone))
+    conn.commit()
+    conn.close()
+
+    # Show success message
+    reset_window.destroy()  # Close the reset password window
+    messagebox.showinfo("Password Reset", "Your password has been reset successfully. Please login.")
+
         
 # Function to handle the alarm
 def schedule_alarm(task_name, alarm_time):
@@ -64,7 +136,7 @@ def schedule_alarm(task_name, alarm_time):
         while True:
             current_time = datetime.now().strftime("%H:%M:%S")
             if current_time == alarm_time:
-                pygame.mixer.music.load(r"C:\Users\Prudhvi\Downloads\mixkit-classic-alarm-995.wav")  # Replace with the path to your audio file
+                pygame.mixer.music.load(r"C:\Users\HP\Downloads\alarm.wav")  # Replace with the path to your audio file
                 pygame.mixer.music.play()
                 messagebox.showinfo("Alarm", f"Time for your task: {task_name}")
                 while pygame.mixer.music.get_busy():
@@ -76,7 +148,7 @@ def schedule_alarm(task_name, alarm_time):
 
 # Function to set background image for any window
 def set_background(window, image_path):
-    bg_image = Image.open(r"C:\Users\Prudhvi\Downloads\Test\appbg.png")
+    bg_image = Image.open(r"C:\Users\HP\Downloads\appbg.png")
     bg_image = bg_image.resize((window.winfo_screenwidth(), window.winfo_screenheight()))
     bg_image = ImageTk.PhotoImage(bg_image)
 
@@ -91,7 +163,7 @@ def open_create_account_window():
     create_account_window = tk.Toplevel(login_window)
     create_account_window.title("Create Account")
     create_account_window.geometry("400x300")
-    set_background(create_account_window, r"C:/Users/HP/Downloads/Task reminder/appbg.png")
+    set_background(create_account_window, r"C:/Users/HP/Downloads/appbg.png")
 
     heading_label = tk.Label(create_account_window, text="Create Account", font=("Arial", 18, "bold"))
     heading_label.pack(pady=20)
@@ -119,7 +191,7 @@ def open_reset_password_window():
     reset_window = tk.Toplevel(login_window)
     reset_window.title("Reset Password")
     reset_window.geometry("400x300")
-    set_background(reset_window, r"C:/Users/HP/Downloads/Task reminder/appbg.png")
+    set_background(reset_window, r"C:/Users/HP/Downloads/appbg.png")
 
     heading_label = tk.Label(reset_window, text="Reset Password", font=("Arial", 18, "bold"))
     heading_label.pack(pady=20)
@@ -147,11 +219,11 @@ def open_reset_password_window():
     reset_button.pack(pady=20)
 
 # Main window for task reminder
-def open_main_window():
+def open_main_window(logged_in_user_email):
     window = tk.Tk()
     window.title("Task Reminder")
     window.geometry(f"{window.winfo_screenwidth()}x{window.winfo_screenheight()}")
-    set_background(window, r"C:/Users/HP/Downloads/Task reminder/appbg.png")
+    set_background(window, r"C:/Users/HP/Downloads/appbg.png")
 
     # Heading Label for Task Reminder (centered at top)
     heading_label = tk.Label(window, text="Time Reminder", font=("Arial", 24, "bold"), fg="white", bg="black")
@@ -170,27 +242,61 @@ def open_main_window():
 
     # Add, Delete, Reset buttons for tasks
     def add_task():
-        task = task_entry.get()
+        task_name = task_entry.get()
         description = description_entry.get()
         date = cal.get_date()
         hour = hour_picker.get()
         minute = minute_picker.get()
         second = second_picker.get()
-        if not task or not description or not date or not hour or not minute or not second:
+
+        if not task_name or not description or not date or not hour or not minute or not second:
             messagebox.showwarning("Input Error", "Please fill in all fields.")
         else:
-            task_listbox.insert(tk.END, f"{task} - {description} - {date} - {hour}:{minute}:{second}")
+            # Connect to the database
+            conn = sqlite3.connect('task_reminder.db')
+            cursor = conn.cursor()
+
+            # Insert the task into the database with the logged-in email
+            cursor.execute('''
+                INSERT INTO tasks (user_id, task_name, description, date, time)
+                VALUES (?, ?, ?, ?, ?)
+            ''', (logged_in_user_email, task_name, description, date, f"{hour}:{minute}:{second}"))
+
+            conn.commit()
+            conn.close()
+
+            task_listbox.insert(tk.END, f"{task_name} - {description} - {date} - {hour}:{minute}:{second}")
             task_time = f"{hour}:{minute}:{second}"
-            schedule_alarm(task, task_time)
+            schedule_alarm(task_name, task_time)
+
+            # Clear input fields
             task_entry.delete(0, tk.END)
             description_entry.delete(0, tk.END)
 
     def delete_task():
         try:
             selected_task_index = task_listbox.curselection()[0]
+            task_info = task_listbox.get(selected_task_index).split(" - ")
+            task_name = task_info[0]  # Get task name from listbox
+
+            # Connect to the database to fetch the task ID
+            conn = sqlite3.connect('task_reminder.db')
+            cursor = conn.cursor()
+
+            # Fetch the task ID based on task name and user
+            cursor.execute('SELECT id FROM tasks WHERE task_name = ? AND user_id = ?', (task_name, logged_in_user_email))
+            task_id = cursor.fetchone()[0]  # Get the task ID
+
+            # Delete the task using its ID
+            cursor.execute('DELETE FROM tasks WHERE id = ?', (task_id,))
+            conn.commit()
+            conn.close()
+
             task_listbox.delete(selected_task_index)
+
         except IndexError:
             messagebox.showwarning("Selection Error", "Please select a task to delete.")
+
 
     def reset_fields():
         task_entry.delete(0, tk.END)
@@ -199,6 +305,24 @@ def open_main_window():
         minute_picker.delete(0, tk.END)
         second_picker.delete(0, tk.END)
         cal.selection_clear()
+
+    def load_user_tasks():
+        task_listbox.delete(0, tk.END)
+
+        conn = sqlite3.connect('task_reminder.db')
+        cursor = conn.cursor()
+
+        cursor.execute('SELECT * FROM tasks WHERE user_id = ?', (logged_in_user_email,))
+        tasks = cursor.fetchall()
+
+        if not tasks:
+            print("No tasks found for user")  # Debugging line
+
+        for task in tasks:
+            task_listbox.insert(tk.END, f"{task[2]} - {task[3]} - {task[4]} - {task[5]}")
+
+        conn.close()
+
 
     # Input Fields for Task
     task_label = tk.Label(window, text="Task", font=("Arial", 12), bg="lightblue")
@@ -248,6 +372,8 @@ def open_main_window():
     task_listbox = tk.Listbox(window, width=60, height=10, font=("Arial", 12))
     task_listbox.grid(row=7, column=0, columnspan=7, padx=10, pady=10)
 
+    load_user_tasks()
+
     window.mainloop()
 
 # Function to open the login window
@@ -257,7 +383,7 @@ def open_login_window():
     login_window = tk.Tk()
     login_window.title("Login")
     login_window.geometry("400x300")
-    set_background(login_window, r"C:/Users/HP/Downloads/Task reminder/appbg.png")
+    set_background(login_window, r"C:\Users\HP\Downloads\appbg.png")
 
     heading_label = tk.Label(login_window, text="Login", font=("Arial", 18, "bold"))
     heading_label.pack(pady=20)
@@ -290,4 +416,3 @@ def open_login_window():
 
 # Start the login window
 open_login_window()
-
