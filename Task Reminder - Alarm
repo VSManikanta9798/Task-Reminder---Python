@@ -24,7 +24,7 @@ def create_database():
                     )''')
 
     # Drop the tasks table if it already exists
-    #cursor.execute('''DROP TABLE IF EXISTS tasks''')  # Drop the existing tasks table
+    cursor.execute('''DROP TABLE IF EXISTS tasks''')  # Drop the existing tasks table
 
     # Recreate the tasks table with the correct structure
     cursor.execute('''CREATE TABLE IF NOT EXISTS tasks (
